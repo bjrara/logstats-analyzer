@@ -1,9 +1,9 @@
 package com.ctrip.zeus.logstats.parser.state.extended;
 
-import com.ctrip.zeus.logstats.parser.state.Action;
 import com.ctrip.zeus.logstats.parser.state.LogStatsState;
 import com.ctrip.zeus.logstats.parser.state.LogStatsStateMachine;
 import com.ctrip.zeus.logstats.parser.state.StateMachineContext;
+import com.ctrip.zeus.logstats.parser.state.Action;
 
 /**
  * Created by zhoumy on 2016/6/7.

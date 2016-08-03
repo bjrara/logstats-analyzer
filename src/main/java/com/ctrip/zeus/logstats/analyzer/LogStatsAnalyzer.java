@@ -18,7 +18,7 @@ public interface LogStatsAnalyzer {
      * when it is called. It might return a wrong value if file keeps growing.
      * This method is recommended to use iff reading a read-only file.
      * @return true if file cursor has reached the end of the file.
-     * @throws java.io.IOException
+     * @throws IOException
      */
     boolean reachFileEnd() throws IOException;
 
