@@ -8,35 +8,46 @@ import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Scanner;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Created by zhoumy on 2015/11/13.
  */
 public class AccessLogTracker implements LogTracker {
-    private final int TrackLatch = 10;
+
     private final LogTrackerStrategy strategy;
     private final String logFilename;
-    private final int size;
+    private final int startMode;
+
+    private final boolean dropOnFileChange;
+    private final AtomicBoolean reopenRequested = new AtomicBoolean(false);
+
     private final ByteBuffer buffer;
+    private final int size;
     private RandomAccessFile raf;
     private FileChannel fileChannel;
+
     private long offset;
     private long previousOffset;
-    private String offsetValue = "";
-    private int rollingLogCounter;
-    private File trackingFile;
-    private boolean allowTracking;
-    private int startMode;
     private byte[] line;
+    private String offsetValue = "";
+
+    private boolean allowTracking;
+    private final int TrackLatch = 10;
+    private int rollingLogCounter;
+
+    private File trackingFile;
 
     Logger logger = LoggerFactory.getLogger(this.getClass());
 
     public AccessLogTracker(LogTrackerStrategy strategy) {
         this.strategy = strategy;
         logFilename = strategy.getLogFilename();
-        size = strategy.getReadSize();
-        allowTracking = strategy.isAllowTrackerMemo();
         startMode = strategy.getStartMode();
+
+        dropOnFileChange = strategy.isDropOnFileChange();
+
+        allowTracking = strategy.isAllowTrackerMemo();
         if (allowTracking) {
             trackingFile = new File(strategy.getTrackerMemoFilename());
             if (!trackingFile.exists())
@@ -47,6 +58,7 @@ public class AccessLogTracker implements LogTracker {
                     logger.error("Create access log tracking file fails.", e);
                 }
         }
+        size = strategy.getReadBufferSize();
         buffer = ByteBuffer.allocate(size);
         line = new byte[size];
     }
@@ -88,12 +100,16 @@ public class AccessLogTracker implements LogTracker {
                 }
             }
         }
-        return offset == fileChannel.size();
+        return offset == fileChannel.size() && !reopenRequested.get();
     }
 
     @Override
     public boolean reopenOnFileChange(String event) {
         logger.info("Reopen file on file change event " + event + ".");
+        return reopenRequested.compareAndSet(false, true);
+    }
+
+    private boolean reopenFile(String event) {
         try {
             reset(LogTrackerStrategy.START_FROM_HEAD, false, false);
             return true;
@@ -106,8 +122,8 @@ public class AccessLogTracker implements LogTracker {
             } catch (IOException e1) {
                 logger.error("Unexpected error occurred when reacting to fileChange signal " + event + ".", e1);
             }
+            return false;
         }
-        return false;
     }
 
     @Override
@@ -136,14 +152,26 @@ public class AccessLogTracker implements LogTracker {
     public void fastMove(final StatsDelegate<String> delegator) throws IOException {
         try {
             if (offset > fileChannel.size()) {
-                previousOffset = offset = 0;
-                fileChannel.position(offset);
+                //TODO copy_truncate strategy
+                if (!reopenRequested.get()) {
+                    logger.info("Go back to head on COPY_TRUNCATE event.");
+                    previousOffset = offset = 0;
+                    fileChannel.position(offset);
+                } else {
+                    logger.warn("Invalid offset value is found. offset=" + offset + ", file-size=" + fileChannel.size());
+                    nextRound();
+                    return;
+                }
             }
+
             buffer.clear();
             try {
-                if (fileChannel.read(buffer) == -1)
+                if (fileChannel.read(buffer) == -1) {
+                    nextRound();
                     return;
+                }
             } catch (IOException ex) {
+                logger.error("Fail to read content to buffer.", ex);
                 stop();
             }
             buffer.flip();
@@ -194,16 +222,29 @@ public class AccessLogTracker implements LogTracker {
                             break;
                     } // end of switch
                 }// end of while !eol && buffer.hasRemaining
-                // the cursor hasn't reached the end of a line, read one more buffer
+
+                // the cursor has possibly not reached the end of a line, read one more buffer
                 if (row == 0) {
                     buffer.clear();
                     try {
+                        // reach file end
                         if (fileChannel.read(buffer) == -1) {
+                            offsetValue = valueBuilder.append(new String(line, 0, colOffset)).toString();
+                            valueBuilder.setLength(0);
+                            try {
+                                delegator.delegate(offsetValue);
+                            } catch (Exception ex) {
+                                logger.error("AccessLogTracker::delegator throws an unexpected error", ex);
+                            }
+                            offset += colOffset;
+                            previousOffset = offset - offsetValue.length();
                             fileChannel.position(offset);
-                            logIfAllowed();
+
+                            nextRound();
                             return;
                         }
                     } catch (IOException ex) {
+                        logger.error("Fail to read content to buffer.", ex);
                         stop();
                     }
                     buffer.flip();
@@ -214,13 +255,28 @@ public class AccessLogTracker implements LogTracker {
                 colOffset = 0;
                 eol = false;
             }
+
             fileChannel.position(offset);
-            logIfAllowed();
+            nextRound();
         } catch (IOException ex) {
             // this code is never expected to be reached
             logger.error("Unexpected error occurred when tracking access.log.", ex);
             reset(LogTrackerStrategy.START_FROM_CURRENT, false, false);
         }
+    }
+
+    private void nextRound() throws IOException {
+        if (reopenRequested.get()) {
+            if (dropOnFileChange && reopenRequested.compareAndSet(true, false)) {
+                reopenFile("DROP_AFTER_REOPEN");
+            } else {
+                if (offset == fileChannel.size() && reopenRequested.compareAndSet(true, false)) {
+                    reopenFile("END_OF_FILE");
+                }
+            }
+        }
+
+        logIfAllowed();
     }
 
     private void reset(int startFromOption, boolean restoreFromFile, boolean restoreFromMemory) throws IOException {
@@ -260,7 +316,7 @@ public class AccessLogTracker implements LogTracker {
                     fileChannel.position(restoredPreOffset);
                     String peekValue = raf.readLine();
                     // restore confirms right, otherwise fall through
-                    if (peekValue.equals(savedPreValue)) {
+                    if (savedPreValue.endsWith(peekValue)) {
                         previousOffset = restoredPreOffset;
                         offset = fileChannel.position();
                         return;
