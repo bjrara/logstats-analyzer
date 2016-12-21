@@ -59,6 +59,7 @@ public class LogTrackerStrategy {
             case LOGROTATE_RENAME:
                 dropOnFileChange = false;
                 reopenAfterLogRotate = true;
+                break;
         }
 
         return this;

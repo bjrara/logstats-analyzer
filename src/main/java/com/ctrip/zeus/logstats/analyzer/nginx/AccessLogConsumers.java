@@ -71,8 +71,8 @@ public class AccessLogConsumers {
                                 List<KeyValue> result = logParser.parse(value);
                                 for (StatsDelegate d : delegator) {
                                     try {
-                                        d.delegate(result);
-                                    } catch(Exception ex){
+                                        d.delegate(value, result);
+                                    } catch (Exception ex) {
                                         logger.error("Delegator of AccessLogConsumers throws an exception.", ex);
                                     }
                                 }
@@ -88,11 +88,7 @@ public class AccessLogConsumers {
 
     public void accept(String value) {
         if (running.get()) {
-            if (source.size() < safeLatch) {
-                source.offer(value);
-            } else {
-                logger.warn("Too busy Consumers - new values are rejected.");
-            }
+            source.offer(value);
         } else {
             logger.warn("Consumers are not running - new values are rejected.");
         }
