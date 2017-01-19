@@ -72,7 +72,7 @@ public class AccessLogConsumers {
                                 for (StatsDelegate d : delegator) {
                                     try {
                                         d.delegate(value, result);
-                                    } catch (Exception ex) {
+                                    } catch(Exception ex){
                                         logger.error("Delegator of AccessLogConsumers throws an exception.", ex);
                                     }
                                 }
@@ -88,7 +88,11 @@ public class AccessLogConsumers {
 
     public void accept(String value) {
         if (running.get()) {
-            source.offer(value);
+            if (source.size() < safeLatch) {
+                source.offer(value);
+            } else {
+                logger.warn("Too busy Consumers - new values are rejected.");
+            }
         } else {
             logger.warn("Consumers are not running - new values are rejected.");
         }

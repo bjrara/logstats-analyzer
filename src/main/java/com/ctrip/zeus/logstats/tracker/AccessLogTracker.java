@@ -105,12 +105,11 @@ public class AccessLogTracker implements LogTracker {
 
     @Override
     public boolean reopenOnFileChange(String event) {
-        logger.info("Reopen file event " + event + " is triggered.");
+        logger.info("Reopen file on file change event " + event + ".");
         return reopenRequested.compareAndSet(false, true);
     }
 
     private boolean reopenFile(String event) {
-        logger.info("Reopen file on file change event " + event + ".");
         try {
             reset(LogTrackerStrategy.START_FROM_HEAD, false, false);
             return true;
