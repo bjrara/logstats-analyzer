@@ -67,10 +67,11 @@ public class DefaultLogWatchService implements LogWatchService {
         for (WatchEvent<?> watchEvent : watchEvents) {
             String event = watchEvent.kind().name();
             String filename = ((Path) watchEvent.context()).toString();
-            logger.info("Log watch service signals event " + event + " on file " + filename + ".");
             if (registeredWatchingFiles.size() == 0) {
+                logger.info("Log watch service signals event " + event + " on file " + filename + ".");
                 fileChangeEvents.add(new FileChangeEvent(event, filename));
             } else if (registeredWatchingFiles.contains(filename)) {
+                logger.info("Log watch service signals event " + event + " on file " + filename + ".");
                 fileChangeEvents.add(new FileChangeEvent(event, filename));
             }
         }

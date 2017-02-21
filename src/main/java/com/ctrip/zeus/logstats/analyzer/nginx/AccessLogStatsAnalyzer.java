@@ -1,5 +1,6 @@
 package com.ctrip.zeus.logstats.analyzer.nginx;
 
+import com.ctrip.zeus.logstats.LogFormat;
 import com.ctrip.zeus.logstats.StatsDelegate;
 import com.ctrip.zeus.logstats.analyzer.LogStatsAnalyzer;
 import com.ctrip.zeus.logstats.analyzer.LogStatsAnalyzerConfig;
@@ -11,7 +12,6 @@ import com.ctrip.zeus.logstats.parser.LogParser;
 import com.ctrip.zeus.logstats.tracker.AccessLogTracker;
 import com.ctrip.zeus.logstats.tracker.LogTracker;
 import com.ctrip.zeus.logstats.tracker.LogTrackerStrategy;
-import com.ctrip.zeus.service.build.conf.LogFormat;
 
 import java.io.File;
 import java.io.IOException;

@@ -39,11 +39,16 @@ public class StressTest {
                 .setLogFormat(new AccessLogStateMachineFormat(LogFormat.getMainCompactString()).generate())
                 .setLogFilename(accessLogFile.getAbsolutePath())
                 .setNumberOfConsumers(analyzerWorkers)
-                .setTrackerReadSize(1024 * readBufferSize)
+                .setReadBufferSize(1024 * readBufferSize)
                 .isStartFromHead(true)
                 .registerLogStatsDelegator(new StatsDelegate<List<KeyValue>>() {
                     @Override
                     public void delegate(List<KeyValue> input) {
+
+                    }
+
+                    @Override
+                    public void delegate(String raw, List<KeyValue> input) {
                         if (input != null && input.size() > 0) {
                             try {
                                 dateFormat.get().parse(input.get(0).getValue());
@@ -94,9 +99,9 @@ public class StressTest {
     }
 
     public static String formatFileSize(long size) {
-        if(size <= 0) return "0";
-        final String[] units = new String[] { "B", "kB", "MB", "GB", "TB" };
-        int digitGroups = (int) (Math.log10(size)/ Math.log10(1024));
-        return new DecimalFormat("#,##0.#").format(size/ Math.pow(1024, digitGroups)) + " " + units[digitGroups];
+        if (size <= 0) return "0";
+        final String[] units = new String[]{"B", "kB", "MB", "GB", "TB"};
+        int digitGroups = (int) (Math.log10(size) / Math.log10(1024));
+        return new DecimalFormat("#,##0.#").format(size / Math.pow(1024, digitGroups)) + " " + units[digitGroups];
     }
 }
